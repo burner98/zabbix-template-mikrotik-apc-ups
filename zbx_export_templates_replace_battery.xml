@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <zabbix_export>
     <version>7.4</version>
     <template_groups>
@@ -18,6 +18,28 @@
                 </group>
             </groups>
             <items>
+                <item>
+                    <uuid>361bfcd6f3ac48a7b1aa6d824ee0cbca</uuid>
+                    <name>Активные аварии (RFC1628)</name>
+                    <type>SNMP_AGENT</type>
+                    <snmp_oid>1.3.6.1.2.1.33.1.6.1.0</snmp_oid>
+                    <key>ups.alarms.present</key>
+                    <delay>30s</delay>
+                    <history>90d</history>
+                    <tags>
+                        <tag>
+                            <tag>UPS</tag>
+                        </tag>
+                    </tags>
+                    <triggers>
+                        <trigger>
+                            <uuid>f9df2ac8e75f40aaa0b10b84a11f9ff5</uuid>
+                            <expression>last(/APC UPS from Mikrotik/ups.alarms.present)&lt;&gt;0</expression>
+                            <name>Ошибка в ИБП</name>
+                            <priority>HIGH</priority>
+                        </trigger>
+                    </triggers>
+                </item>
                 <item>
                     <uuid>e40146a4f4e44d1cad5706f828f71a1e</uuid>
                     <name>Уровень заряда батареи</name>
@@ -49,10 +71,10 @@
                     <key>ups.battery.state</key>
                     <history>90d</history>
                     <description>
-						неизвестно(1)
-						нормальное(2)
-						разряжена(3)
-						полностью разряжена(4)
+						Неизвестно(1)
+						Нормальное(2)
+						Разряжается(3)
+						Истощена(4)
 					</description>
                     <valuemap>
                         <name>Состояние батареи</name>
@@ -191,22 +213,72 @@
                         </tag>
                     </tags>
                 </item>
-                <item>
-                    <uuid>361bfcd6f3ac48a7b1aa6d824ee0cbca</uuid>
-                    <name>Активные аварии (RFC1628)</name>
-                    <type>SNMP_AGENT</type>
-                    <snmp_oid>1.3.6.1.2.1.33.1.6.1.0</snmp_oid>
-                    <key>ups.alarms.present</key>
-                    <delay>30s</delay>
-                    <history>90d</history>
-                    <value_type>UNSIGNED</value_type>
-                    <tags>
-                        <tag>
-                            <tag>UPS</tag>
-                        </tag>
-                    </tags>
-                </item>
             </items>
+            <discovery_rules>
+                <discovery_rule>
+                    <uuid>181466951f124dafa1be71e749925425</uuid>
+                    <name>UPS RFC1628 alarms (upsAlarmDescr)</name>
+                    <type>SNMP_AGENT</type>
+                    <snmp_oid>1.3.6.1.2.1.33.1.6.2.1.2</snmp_oid>
+                    <key>snmp.discovery[upsAlarmDescr]</key>
+                    <delay>30s</delay>
+                    <filter>
+                        <evaltype>AND</evaltype>
+                        <conditions>
+                            <condition>
+                                <macro>{#SNMPVALUE}</macro>
+                                <value>^1\.3\.6\.1\.2\.1\.33\.1\.6\.3\.1$</value>
+                            </condition>
+                        </conditions>
+                    </filter>
+                    <lifetime>3600</lifetime>
+                    <item_prototypes>
+                        <item_prototype>
+                            <uuid>161f14f8dbd443fbbe65dd6b52d1a615</uuid>
+                            <name>UPS replace-battery descr [{#SNMPINDEX}]</name>
+                            <type>SNMP_AGENT</type>
+                            <snmp_oid>1.3.6.1.2.1.33.1.6.2.1.2.{#SNMPINDEX}</snmp_oid>
+                            <key>ups.alarm.descr[{#SNMPINDEX}]</key>
+                            <delay>30s</delay>
+                            <history>7d</history>
+                            <value_type>TEXT</value_type>
+                            <tags>
+                                <tag>
+                                    <tag>UPS</tag>
+                                </tag>
+                            </tags>
+                        </item_prototype>
+                        <item_prototype>
+                            <uuid>3835a2a52fc24f7fadf2b3384ce2120f</uuid>
+                            <name>UPS replace-battery flag [{#SNMPINDEX}]</name>
+                            <type>DEPENDENT</type>
+                            <key>ups.alarm.replace[{#SNMPINDEX}]</key>
+                            <history>30d</history>
+                            <preprocessing>
+                                <step>
+                                    <type>JAVASCRIPT</type>
+                                    <parameters>
+                                        <parameter>return (value &amp;&amp; value.trim() === &quot;1.3.6.1.2.1.33.1.6.3.1&quot;) ? 1 : 0;</parameter>
+                                    </parameters>
+                                </step>
+                            </preprocessing>
+                            <master_item>
+                                <key>ups.alarm.descr[{#SNMPINDEX}]</key>
+                            </master_item>
+                            <trigger_prototypes>
+                                <trigger_prototype>
+                                    <uuid>20320d4bbfa148b48eb724ac1b040cfd</uuid>
+                                    <expression>last(/APC UPS from Mikrotik/ups.alarm.replace[{#SNMPINDEX}])=1</expression>
+                                    <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
+                                    <recovery_expression>last(/APC UPS from Mikrotik/ups.alarm.replace[{#SNMPINDEX}])=0</recovery_expression>
+                                    <name>UPS: требуется замена батареи</name>
+                                    <priority>HIGH</priority>
+                                </trigger_prototype>
+                            </trigger_prototypes>
+                        </item_prototype>
+                    </item_prototypes>
+                </discovery_rule>
+            </discovery_rules>
             <valuemaps>
                 <valuemap>
                     <uuid>aa15911d48044e92ad79696c4ba69c1e</uuid>
@@ -231,77 +303,6 @@
                     </mappings>
                 </valuemap>
             </valuemaps>
-            <discovery_rules>
-                <discovery_rule>
-                    <uuid>181466951f124dafa1be71e749925425</uuid>
-                    <name>UPS RFC1628 alarms (upsAlarmDescr)</name>
-                    <type>SNMP_AGENT</type>
-                    <snmp_oid>1.3.6.1.2.1.33.1.6.2.1.2</snmp_oid>
-                    <key>snmp.discovery[upsAlarmDescr]</key>
-                    <delay>30s</delay>
-                    <lifetime>3600</lifetime>
-                    <filter>
-                        <conditions>
-                            <condition>
-                                <macro>{#SNMPVALUE}</macro>
-                                <value>^1\.3\.6\.1\.2\.1\.33\.1\.6\.3\.1$</value>
-                                <operator>MATCHES_REGEX</operator>
-                                <formulaid>A</formulaid>
-                            </condition>
-                        </conditions>
-                        <evaltype>AND</evaltype>
-                    </filter>
-                    <item_prototypes>
-                        <item_prototype>
-                            <uuid>161f14f8dbd443fbbe65dd6b52d1a615</uuid>
-                            <name>UPS replace-battery descr [{#SNMPINDEX}]</name>
-                            <type>SNMP_AGENT</type>
-                            <snmp_oid>1.3.6.1.2.1.33.1.6.2.1.2.{#SNMPINDEX}</snmp_oid>
-                            <key>ups.alarm.descr[{#SNMPINDEX}]</key>
-                            <delay>30s</delay>
-                            <history>7d</history>
-                            <value_type>TEXT</value_type>
-                            <tags>
-                                <tag>
-                                    <tag>UPS</tag>
-                                </tag>
-                            </tags>
-                        </item_prototype>
-                        <item_prototype>
-                            <uuid>3835a2a52fc24f7fadf2b3384ce2120f</uuid>
-                            <name>UPS replace-battery flag [{#SNMPINDEX}]</name>
-                            <type>DEPENDENT</type>
-                            <key>ups.alarm.replace[{#SNMPINDEX}]</key>
-                            <delay>0s</delay>
-                            <history>30d</history>
-                            <value_type>UNSIGNED</value_type>
-                            <master_item>
-                                <key>ups.alarm.descr[{#SNMPINDEX}]</key>
-                            </master_item>
-                            <preprocessing>
-                                <step>
-                                    <type>JAVASCRIPT</type>
-                                    <error_handler>CUSTOM_VALUE</error_handler>
-                                    <error_handler_params>0</error_handler_params>
-                                    <parameters>
-                                        <parameter>return (value &amp;&amp; value.trim() === &quot;1.3.6.1.2.1.33.1.6.3.1&quot;) ? 1 : 0;</parameter>
-                                    </parameters>
-                                </step>
-                            </preprocessing>
-                        </item_prototype>
-                    </item_prototypes>
-                    <trigger_prototypes>
-                        <trigger_prototype>
-                            <uuid>20320d4bbfa148b48eb724ac1b040cfd</uuid>
-                            <name>UPS: требуется замена батареи</name>
-                            <expression>last(/APC UPS from Mikrotik/ups.alarm.replace[{#SNMPINDEX}])=1</expression>
-                            <recovery_expression>last(/APC UPS from Mikrotik/ups.alarm.replace[{#SNMPINDEX}])=0</recovery_expression>
-                            <priority>HIGH</priority>
-                            <recovery_mode>RECOVERY_EXPRESSION</recovery_mode>
-                        </trigger_prototype>
-                    </trigger_prototypes>
-                </discovery_rule>
-            </discovery_rules>
         </template>
     </templates>
     <graphs>
